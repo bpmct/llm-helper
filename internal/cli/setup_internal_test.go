@@ -73,6 +73,26 @@ func TestSetupPrefersTheBinKeyFromTheEnvironment(t *testing.T) {
 	if got := findVLLMOrEnv(); got != venv {
 		t.Errorf("VLLM_BIN=%s: findVLLMOrEnv = %q", venv, got)
 	}
+
+	// A VLLM_BIN that links into a venv records the venv's vllm, since
+	// shard commands look for python and ray beside it. Other servers keep
+	// the link they were given.
+	link := filepath.Join(t.TempDir(), "vllm")
+	if err := os.Symlink(venv, link); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(vllm.BinKey(), link)
+	if got, err := envBin(vllm); err != nil || got != stableVLLMPath(venv) {
+		t.Errorf("VLLM_BIN=%s (a link): envBin = %q, %v; want %q", link, got, err, stableVLLMPath(venv))
+	}
+	llamaLink := filepath.Join(t.TempDir(), "llama-server")
+	if err := os.Symlink(built, llamaLink); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(prov.BinKey(), llamaLink)
+	if got, err := envBin(prov); err != nil || got != llamaLink {
+		t.Errorf("%s=%s (a link): envBin = %q, %v; want the link", prov.BinKey(), llamaLink, got, err)
+	}
 }
 
 // A system-scope unit needs sudo, which fails without a terminal on a box

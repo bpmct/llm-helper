@@ -305,7 +305,9 @@ func lookBin(prov engine.Provider) string {
 // absolute path, or "" when it names none. A name rather than a path is
 // looked up on PATH. It is an error for the variable to name something that
 // is not an executable: setup would otherwise quietly record the server the
-// user set it to avoid.
+// user set it to avoid. vLLM's path is normalized as findVLLM's is, because
+// shard commands look for its venv's python and ray beside it; any other
+// server's link is kept as named.
 func envBin(prov engine.Provider) (string, error) {
 	v := strings.TrimSpace(os.Getenv(prov.BinKey()))
 	if v == "" {
@@ -317,6 +319,9 @@ func envBin(prov engine.Provider) (string, error) {
 	}
 	if err != nil {
 		return "", fmt.Errorf("%s=%s in the environment is not an executable (%w); fix it, or unset it to have setup look for %s", prov.BinKey(), v, err, prov.BinName())
+	}
+	if prov.Name() == engine.VLLM {
+		p = stableVLLMPath(p)
 	}
 	return p, nil
 }
