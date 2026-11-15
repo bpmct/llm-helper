@@ -3,6 +3,8 @@ package detect
 import (
 	"strings"
 	"testing"
+
+	"github.com/coder/llm-helper/internal/hardware"
 )
 
 // Figures below come from vLLM's memory profiler on a DGX Spark (GB10, 121.69
@@ -231,5 +233,82 @@ func TestAMachineThatCannotServeSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(reason, "too little memory") {
 		t.Errorf("reason = %q, want it to say the machine cannot serve a model", reason)
+	}
+}
+
+// An APU that maps system memory through GTT, as a Strix Halo does, is sized
+// against that limit and its carve-out, not against all of RAM and not as the
+// CPU backend. Raising the limit raises the budget, until the OS's share of
+// RAM is what bounds it. The figures are a Ryzen AI Max with 128 GB at the
+// stock ttm pages_limit and at the one its 103 GB model needed.
+func TestAGTTLimitBoundsTheBudget(t *testing.T) {
+	const ram, carve = 134314070016, 536870912
+	stock := FromReadings(strixHaloReadings(ram, carve, 101139496960))
+	raised := FromReadings(strixHaloReadings(ram, carve, 120259084288))
+	if pool, kind := stock.Pool(); kind != "gtt" || pool != carve+101139496960 {
+		t.Errorf("stock pool = %d %s, want the GTT limit plus the carve-out", pool, kind)
+	}
+	if !strings.Contains(stock.BudgetReason, "GTT limit") || strings.Contains(stock.BudgetReason, "CPU-backend") {
+		t.Errorf("reason = %q, want it to name the GTT limit", stock.BudgetReason)
+	}
+	const model = 103e9
+	if stock.BudgetBytes >= model || raised.BudgetBytes <= model {
+		t.Errorf("budgets %d (stock) and %d (raised); want the 103 GB model to fit only after the raise", stock.BudgetBytes, raised.BudgetBytes)
+	}
+	if raised.BudgetBytes > raised.GTTBytes {
+		t.Errorf("budget %d exceeds the GTT limit %d", raised.BudgetBytes, raised.GTTBytes)
+	}
+
+	// A limit at all of RAM would leave the OS nothing, so RAM less the
+	// OS bounds the weights instead.
+	all := FromReadings(strixHaloReadings(ram, carve, ram))
+	if all.BudgetBytes >= int64(ram-defaultBaseline(ram)) || !strings.Contains(all.BudgetReason, "minus the OS") {
+		t.Errorf("GTT at all of RAM: budget %d (%s)", all.BudgetBytes, all.BudgetReason)
+	}
+
+	// A large firmware carve-out is memory the OS does not see, and the GPU
+	// still uses it.
+	carved := FromReadings(strixHaloReadings(32e9, 96e9, 16e9))
+	if carved.BudgetBytes <= 96e9 {
+		t.Errorf("96 GB carve-out with a 16 GB GTT: budget %d, want more than the carve-out", carved.BudgetBytes)
+	}
+}
+
+// Without a GTT reading, as from an llm-helper that did not read it, the
+// machine is still recognised and sized from system memory as before.
+func TestAUnifiedAPUWithoutAGTTReadingFallsBackToRAM(t *testing.T) {
+	hw := FromReadings(strixHaloReadings(134314070016, 536870912, 0))
+	if hw.HardwareID != "amd_strix_halo" || !hw.Unified {
+		t.Fatalf("hardware = %+v", hw)
+	}
+	if _, kind := hw.Pool(); kind != "ram" {
+		t.Errorf("pool kind = %s, want ram", kind)
+	}
+}
+
+func strixHaloReadings(ram, carve, gtt int64) Readings {
+	return Readings{SchemaVersion: 1, OS: "linux", Arch: "amd64", MemTotalBytes: ram, PCI: []PCIDevice{
+		{Vendor: "0x1002", Device: "0x1586", Class: "0x038000", Driver: "amdgpu", VRAMBytes: carve, GTTBytes: gtt},
+	}}
+}
+
+// A card a local definition recognises on the PCI bus as discrete loads
+// weights into its own VRAM, not into the host's RAM.
+func TestADiscretePCIDefinitionIsSizedFromVRAM(t *testing.T) {
+	t.Parallel()
+	reg, err := hardware.Shipped().Extend(hardware.KindMachine, "machines/acme_card.json",
+		[]byte(`{"schema_version":1,"id":"acme_card","display_name":"ACME card","match":{"vendor":"amd","pci_devices":["0x7fff"]},"memory":"discrete","why":"w"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const vram = 24e9
+	f := facts{totalMem: 128e9, pci: []PCIDevice{{Vendor: "0x1002", Device: "0x7fff", Class: "0x030000", Driver: "amdgpu", VRAMBytes: vram}}}
+	var hw Hardware
+	f.describePCIGPU(reg, &hw)
+	if hw.HardwareID != "acme_card" || hw.GPUMemBytes != vram {
+		t.Fatalf("hardware = %+v, want acme_card with %d bytes of VRAM", hw, int64(vram))
+	}
+	if pool, kind := hw.Pool(); kind != "vram" || pool != vram {
+		t.Errorf("pool = %d (%s), want %d (vram)", pool, kind, int64(vram))
 	}
 }
