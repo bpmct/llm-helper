@@ -39,13 +39,17 @@ func TestAMDDeviceWarnings(t *testing.T) {
 	if strings.Contains(w[0], "card0") {
 		t.Errorf("warning %q names a node servers do not open", w[0])
 	}
+	if !strings.Contains(w[0], "ROCm or Vulkan") {
+		t.Errorf("no access: %q, want both backends named", w[0])
+	}
 
 	if w := amdDeviceWarnings(amd, dev, all); len(w) != 0 {
 		t.Errorf("full access: %q", w)
 	}
 	onlyRender := func(p string) bool { return strings.Contains(p, "renderD") }
-	if w := amdDeviceWarnings(amd, dev, onlyRender); len(w) != 1 || strings.Contains(w[0], "renderD128") || !strings.Contains(w[0], "kfd") {
-		t.Errorf("render node only: %q, want /dev/kfd alone", w)
+	if w := amdDeviceWarnings(amd, dev, onlyRender); len(w) != 1 || strings.Contains(w[0], "renderD128") || !strings.Contains(w[0], "kfd") ||
+		strings.Contains(w[0], "ROCm or Vulkan") || !strings.Contains(w[0], "a server on ROCm will not find it") {
+		t.Errorf("render node only: %q, want /dev/kfd alone, blocking ROCm but not Vulkan", w)
 	}
 	if w := amdDeviceWarnings(amd, t.TempDir(), none); len(w) != 0 {
 		t.Errorf("no device nodes at all: %q", w)
