@@ -70,8 +70,8 @@ func TestSetupPrefersTheBinKeyFromTheEnvironment(t *testing.T) {
 	}
 	venv := fakeExecutable(t, mine, "vllm")
 	t.Setenv(vllm.BinKey(), venv)
-	if got := findVLLMOrEnv(); got != venv {
-		t.Errorf("VLLM_BIN=%s: findVLLMOrEnv = %q", venv, got)
+	if got := findVLLMOrEnv(); got != stableVLLMPath(venv) {
+		t.Errorf("VLLM_BIN=%s: findVLLMOrEnv = %q, want %q", venv, got, stableVLLMPath(venv))
 	}
 
 	// A VLLM_BIN that links into a venv records the venv's vllm, since
