@@ -88,7 +88,8 @@ func (f facts) describeGPUs(hw *Hardware) {
 // accelerator, and the machine is sized as it was. The definition's display
 // name stands in for the GPU's, since the bus reports none.
 //
-// A unified GPU that reports a GTT limit loads weights into that, plus any
+// A discrete GPU loads weights into the VRAM amdgpu reports for it. A
+// unified GPU that reports a GTT limit loads weights into that, plus any
 // carve-out the firmware set aside for it, rather than into all of RAM.
 func (f facts) describePCIGPU(reg *hardware.Registry, hw *Hardware) {
 	for _, dev := range f.pci {
@@ -105,6 +106,9 @@ func (f facts) describePCIGPU(reg *hardware.Registry, hw *Hardware) {
 		}
 		hw.GPUName, hw.GPUVendor, hw.GPUPCIID = d.DisplayName, v.ID, dev.Vendor+":"+dev.Device
 		hw.HardwareID, hw.Memory, hw.MemorySource, hw.Arch = d.ID, string(d.Memory), MemoryFromDefinition, d.Arch
+		if d.Memory == hardware.MemoryDiscrete {
+			hw.GPUMemBytes = dev.VRAMBytes
+		}
 		if d.Unified() && dev.GTTBytes > 0 {
 			hw.GTTBytes, hw.GPUCarveOutBytes = dev.GTTBytes, dev.VRAMBytes
 			hw.GTTGB = decimalGB(dev.GTTBytes)
