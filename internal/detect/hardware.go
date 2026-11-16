@@ -58,6 +58,10 @@ type Hardware struct {
 	// GPUsHidden counts GPUs nvidia-smi listed that CUDA_VISIBLE_DEVICES
 	// keeps from the server.
 	GPUsHidden int `json:"gpus_hidden,omitempty"`
+	// GPUsSetAside counts GPUs left out of sizing because nothing names a
+	// GPU and they are not the model GPUPin names: a display card beside a
+	// GB300. A server sees them until CUDA_VISIBLE_DEVICES is set.
+	GPUsSetAside int `json:"gpus_set_aside,omitempty"`
 	// GPUPin is a CUDA_VISIBLE_DEVICES value naming, by UUID, the GPUs with
 	// the most memory, set only when the machine's GPUs are not all the
 	// same model, such as a DGX Station's GB300 beside its display GPU.
