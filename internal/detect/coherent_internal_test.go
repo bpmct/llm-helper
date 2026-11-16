@@ -141,3 +141,18 @@ func TestAnUnpinnedStationIsSizedForItsGB300(t *testing.T) {
 		t.Errorf("CUDA_VISIBLE_DEVICES=0 sized %q with %d set aside; want the RTX PRO 2000, none", hw.GPUName, hw.GPUsSetAside)
 	}
 }
+
+// In NUMA mode MemTotal counts the GPU's HBM. The offload pool is CPU memory
+// only, so the HBM node comes off before the OS and the server do.
+func TestTheOffloadPoolLeavesOutHBMOnlinedAsANUMANode(t *testing.T) {
+	t.Parallel()
+	cpu, hbm := bi(483), bi(249)
+	numa := Hardware{Memory: string(hardware.MemoryCoherent), CUDA: true, GPUMemBytes: bi(251), TotalMemBytes: cpu + hbm, CPULessNodeMemBytes: hbm}
+	cdmm := Hardware{Memory: string(hardware.MemoryCoherent), CUDA: true, GPUMemBytes: bi(251), TotalMemBytes: cpu}
+	if got, want := numa.offloadPool(0), cdmm.offloadPool(0); got != want || got <= 0 {
+		t.Errorf("NUMA-mode pool %d bytes, want the CDMM-mode pool %d", got, want)
+	}
+	if got := numa.offloadPool(0); got >= cpu {
+		t.Errorf("pool %d bytes is more than the CPU's %d", got, cpu)
+	}
+}
