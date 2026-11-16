@@ -166,6 +166,8 @@ func runInspect(ctx context.Context, args []string, jsonOut bool) error {
 		fit := ""
 		switch {
 		case !d.BudgetKnown:
+		case d.FitsOffload(picked.SizeGB):
+			fit = fmt.Sprintf(", fits with ~%.0f GB of its experts in CPU memory", picked.SizeGB-d.BudgetGB)
 		case picked.SizeGB > d.BudgetGB:
 			fit = fmt.Sprintf(", too big for the ~%.0f GB budget", d.BudgetGB)
 		default:
@@ -265,6 +267,13 @@ func printModelDetail(d resolve.Detail, cfg *config.Config) {
 			d.Best.SizeGB, display(*d.Best), d.Variants, d.BudgetGB, d.SizeGB)
 	case *d.FitsBudget:
 		fmt.Printf("  size:       %.1f GB  (fits under the ~%.0fGB budget%s)\n", d.SizeGB, d.BudgetGB, of)
+	case d.FitsWithOffload != nil && *d.FitsWithOffload:
+		size, at := d.SizeGB, ""
+		if d.Best != nil {
+			size, at = d.Best.SizeGB, " at "+display(*d.Best)
+		}
+		fmt.Printf("  size:       %.1f GB%s  (more than the GPU's ~%.0f GB: fits with ~%.0f GB of its experts in CPU memory, which decodes slower)\n",
+			size, at, d.BudgetGB, d.OffloadNeededGB)
 	case d.Variants > 1:
 		// Every quant was measured and the smallest still doesn't fit, so
 		// there is no smaller one to go and look for.
@@ -342,6 +351,11 @@ func printVariants(d resolve.Detail) {
 			mark, note = "  -", "  needs the GGUF plugin"
 		case d.Best != nil && v.Name == d.Best.Name:
 			mark = "  >"
+			if d.FitsOffload(v.SizeGB) {
+				note = "  fits with experts in CPU memory, slower"
+			}
+		case d.FitsOffload(v.SizeGB):
+			note = "  fits with experts in CPU memory, slower"
 		case d.BudgetKnown && v.SizeGB > d.BudgetGB:
 			mark, note = "  x", "  too big for this machine"
 		}

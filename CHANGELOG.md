@@ -11,6 +11,18 @@ the fact.
 
 ### Added
 
+- Grace Hopper and Grace Blackwell (GH200, GB200, GB300, including the DGX
+  Station GB300): a mixture-of-experts model too big for the GPU's own memory
+  can keep part of its experts in the Grace CPU's memory. `inspect` and the
+  panel recommend the largest copy that fits on the GPU, and only when none
+  does, the largest that fits with offload. `new` gives such a profile
+  vLLM's `--cpu-offload-gb` and `--cpu-offload-params experts`; llama.cpp
+  places experts itself. `doctor` and `setup` print the CPU memory available
+  for it. Engines declare this in a new `offload` field.
+- On a machine whose GPUs are different models, such as a DGX Station's GB300
+  and its display GPU, `setup` records the GPUs with the most memory in
+  `config.env` as `CUDA_VISIBLE_DEVICES`, by UUID, and `doctor` warns until
+  it is set.
 - Warm-up: a profile's `WARMUP_FILE` names a chat request that llm-helper
   sends when `up`, `restart` or `switch` sees the server healthy, and that the router sends when a
   server comes back, so the server has the client's fixed prompt cached
@@ -103,6 +115,10 @@ the fact.
 
 ### Changed
 
+- Grace Hopper and Grace Blackwell GPUs are sized by their own HBM rather
+  than as one pool with system memory, which promised a GH200 about 480 GB
+  for a 96 GB GPU, and `--gpu-memory-utilization` is no longer capped on
+  them as on a DGX Spark.
 - gpt-oss profiles now carry `TIKTOKEN_ENCODINGS_BASE` themselves, and
   `setup` no longer writes it into `config.env`. Existing configs keep the
   line, and existing profiles serve as before.

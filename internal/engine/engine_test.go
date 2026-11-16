@@ -175,6 +175,12 @@ func TestParseIsStrict(t *testing.T) {
 		{"process engine without install hint", toyProcess, `"install": { "any": "pip install toy" },`, ``, "install hint"},
 		{"trailing data", toyContainer, ``, ``, "after the top-level"},
 		{"kwargs flag that is not a flag", toyContainer, `"capabilities": {}`, `"capabilities": {"chat_template_kwargs_flag": "kwargs"}`, "chat_template_kwargs_flag"},
+		{"offload on a container engine", toyContainer, `"capabilities": {}`, `"capabilities": {}, "offload": {"automatic": true, "why": "x"}`, "offload belong to the process runtime"},
+		{"offload without a why", toyProcess, `"capabilities": {}`, `"capabilities": {}, "offload": {"automatic": true}`, "offload has no why"},
+		{"automatic offload with args", toyProcess, `"capabilities": {}`, `"capabilities": {}, "offload": {"automatic": true, "args": ["--x", "{offload_gib}"], "why": "x"}`, "takes no args"},
+		{"offload with nothing to do", toyProcess, `"capabilities": {}`, `"capabilities": {}, "offload": {"why": "x"}`, "needs args"},
+		{"offload args without the amount", toyProcess, `"capabilities": {}`, `"capabilities": {}, "offload": {"args": ["--offload"], "why": "x"}`, "never use {offload_gib}"},
+		{"offload with an unknown placeholder", toyProcess, `"capabilities": {}`, `"capabilities": {}, "offload": {"args": ["--x", "{offload_gib}", "{port}"], "why": "x"}`, "{port}"},
 	} {
 		data := strings.Replace(tc.base, tc.old, tc.new, 1)
 		if tc.name == "trailing data" {
@@ -336,5 +342,32 @@ func TestUseLocalSkipsAndReportsBadFiles(t *testing.T) {
 	}
 	if len(engine.LocalErrors()) != 0 {
 		t.Error("UseLocal kept errors from a directory it no longer reads")
+	}
+}
+
+// Offload settings name the amount, and an engine that places weights itself
+// adds nothing.
+func TestOffloadSettingsFillTheAmount(t *testing.T) {
+	t.Parallel()
+	vl, err := engine.Lookup(engine.VLLM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !vl.Capabilities().WeightOffload {
+		t.Fatal("vLLM cannot offload")
+	}
+	args, env := vl.OffloadSettings(145)
+	if !slices.Contains(args, "145") || slices.ContainsFunc(args, func(a string) bool { return strings.Contains(a, "{") }) {
+		t.Errorf("args %v do not carry 145 GiB", args)
+	}
+	if len(env) == 0 {
+		t.Error("no env")
+	}
+	llama, err := engine.Lookup(engine.LlamaCPP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if args, env := llama.OffloadSettings(145); !llama.Capabilities().WeightOffload || len(args)+len(env) > 0 {
+		t.Errorf("llama.cpp offload: %v %v", args, env)
 	}
 }
