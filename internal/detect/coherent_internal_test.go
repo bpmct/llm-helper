@@ -36,7 +36,8 @@ func TestAGraceGPUIsSizedByItsOwnMemory(t *testing.T) {
 		t.Errorf("sized %q with %d GPU(s) set aside, reason %q; want the GB300 alone, the display GPU set aside, no tensor parallelism",
 			hw.GPUName, hw.GPUsSetAside, hw.BudgetReason)
 	}
-	want := hw.TotalMemBytes - int64(defaultBaseline(float64(hw.TotalMemBytes))) - offloadHostReserve
+	cpuMem := hw.TotalMemBytes - hw.CPULessNodeMemBytes // the measured report is in NUMA mode
+	want := cpuMem - int64(defaultBaseline(float64(cpuMem))) - offloadHostReserve
 	if hw.OffloadBytes != want {
 		t.Errorf("offload pool %d bytes, want system memory less the OS and the server: %d", hw.OffloadBytes, want)
 	}
