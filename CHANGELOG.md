@@ -119,6 +119,10 @@ the fact.
   than as one pool with system memory, which promised a GH200 about 480 GB
   for a 96 GB GPU, and `--gpu-memory-utilization` is no longer capped on
   them as on a DGX Spark.
+- Multimodal mixture-of-experts repos that keep their experts in
+  `text_config`, such as GLM-5.3-Flash, are now recognised as MoE, so they
+  can be offered expert offload and their GGUF builds get the same plugin
+  warning as other MoE models.
 - gpt-oss profiles now carry `TIKTOKEN_ENCODINGS_BASE` themselves, and
   `setup` no longer writes it into `config.env`. Existing configs keep the
   line, and existing profiles serve as before.

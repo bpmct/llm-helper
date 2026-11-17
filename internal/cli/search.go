@@ -259,6 +259,13 @@ func printModelDetail(d resolve.Detail, cfg *config.Config) {
 		// Measured, not missing: say why nothing fits rather than calling
 		// this model in particular too big.
 		fmt.Printf("  size:       %.1f GB  (this machine has no room for model weights: %s)\n", d.SizeGB, d.BudgetReason)
+	case d.FitsWithOffload != nil && *d.FitsWithOffload:
+		size, at := d.SizeGB, ""
+		if d.Best != nil {
+			size, at = d.Best.SizeGB, " at "+display(*d.Best)
+		}
+		fmt.Printf("  size:       %.1f GB%s  (more than the GPU's ~%.0f GB: fits with ~%.0f GB of its experts in CPU memory, which decodes slower)\n",
+			size, at, d.BudgetGB, d.OffloadNeededGB)
 	case *d.FitsBudget && d.Best != nil:
 		// Lead with the one worth running rather than the one that merely
 		// proves something here fits, which is the smallest and so also the
@@ -267,13 +274,6 @@ func printModelDetail(d resolve.Detail, cfg *config.Config) {
 			d.Best.SizeGB, display(*d.Best), d.Variants, d.BudgetGB, d.SizeGB)
 	case *d.FitsBudget:
 		fmt.Printf("  size:       %.1f GB  (fits under the ~%.0fGB budget%s)\n", d.SizeGB, d.BudgetGB, of)
-	case d.FitsWithOffload != nil && *d.FitsWithOffload:
-		size, at := d.SizeGB, ""
-		if d.Best != nil {
-			size, at = d.Best.SizeGB, " at "+display(*d.Best)
-		}
-		fmt.Printf("  size:       %.1f GB%s  (more than the GPU's ~%.0f GB: fits with ~%.0f GB of its experts in CPU memory, which decodes slower)\n",
-			size, at, d.BudgetGB, d.OffloadNeededGB)
 	case d.Variants > 1:
 		// Every quant was measured and the smallest still doesn't fit, so
 		// there is no smaller one to go and look for.

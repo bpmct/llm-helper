@@ -111,3 +111,19 @@ func TestInspectShowsAModelThatFitsWithOffload(t *testing.T) {
 		}
 	}
 }
+
+// A smaller copy that fits the GPU but cannot load does not hide that the copy
+// recommended needs offload.
+func TestInspectPrefersTheOffloadVerdictOverAnUnloadableFit(t *testing.T) {
+	d := resolve.Detail{
+		SizeGB: 149, BudgetGB: 244, BudgetKnown: true, FitsBudget: new(true),
+		MoE: true, OffloadGB: 478, FitsWithOffload: new(true), OffloadNeededGB: 151,
+		All: []hf.Variant{{Name: "nvfp4", Label: "NVFP4", SizeGB: 395}, {Name: "q2", Label: "Q2", SizeGB: 149, GGUF: true, Blocked: "split"}},
+	}
+	d.Best = &d.All[0]
+	d.Variants = 2
+	out, _ := captureStdout(t, func() error { printModelDetail(d, nil); return nil })
+	if !strings.Contains(out, "fits with ~151 GB of its experts in CPU memory") || strings.Contains(out, "fits the ~244GB budget") {
+		t.Errorf("size line hides the offload:\n%s", out)
+	}
+}

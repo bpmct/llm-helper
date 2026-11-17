@@ -357,11 +357,17 @@ func (d *Detail) rankVariants(ggufOK bool) {
 		return
 	}
 	size := d.SizeGB
-	if best, ok := w.BestFit(d.BudgetGB+d.OffloadGB, ggufOK); ok && many {
-		d.Best = &best
-		size = best.SizeGB
-	}
 	fits := size <= d.BudgetGB+d.OffloadGB
+	if len(d.All) > 0 {
+		best, ok := w.BestFit(d.BudgetGB+d.OffloadGB, ggufOK)
+		fits = ok
+		if ok {
+			size = best.SizeGB
+			if many {
+				d.Best = &best
+			}
+		}
+	}
 	d.FitsWithOffload = &fits
 	if fits {
 		d.OffloadNeededGB = size - d.BudgetGB

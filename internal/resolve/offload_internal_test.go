@@ -43,6 +43,9 @@ func TestTheBestCopyFitsOnTheGPUBeforeAnyIsOffloaded(t *testing.T) {
 		{"no CPU memory to offload into", []hf.Variant{fp8, nvfp4}, 395, true, 0, "", nil},
 		{"one copy, offloaded", []hf.Variant{nvfp4}, 395, true, 478, "", new(true)},
 		{"one copy, too big even offloaded", []hf.Variant{{Name: "pro", SizeGB: 805}}, 805, true, 478, "", new(false)},
+		{"only an unloadable copy fits offloaded", []hf.Variant{{Name: "bf16", SizeGB: 900}, {Name: "q4", SizeGB: 395, Blocked: "split"}}, 395, true, 478, "", new(false)},
+		{"one copy that cannot load", []hf.Variant{{Name: "q4", SizeGB: 395, Blocked: "split"}}, 395, true, 478, "", new(false)},
+		{"the copy that fits the GPU cannot load", []hf.Variant{nvfp4, {Name: "q2", Label: "Q2", SizeGB: 149, Blocked: "split"}}, 149, true, 478, "NVFP4", new(true)},
 	}
 	for _, tt := range tests {
 		d := Detail{All: tt.all, SizeGB: tt.size, BudgetGB: 244, BudgetKnown: true, MoE: tt.moe, OffloadGB: tt.offloadGB}
